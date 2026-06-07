@@ -74,12 +74,6 @@
         html.dark [contenteditable]:empty:before {
             color: #6b7280; /* text-gray-500 */
         }
-        
-        /* Custom Checkbox Fix */
-        input[type="checkbox"]:checked + div i,
-        input[type="checkbox"]:checked + div svg {
-            opacity: 1 !important;
-        }
     </style>
     <script>
         tailwind.config = {
@@ -336,6 +330,58 @@
         </div>
     </div>
 
+    <!-- Summarize Modal -->
+    <div id="summarize-modal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 z-[60] flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl transform transition-transform mx-4 border border-transparent dark:border-gray-700 max-h-[90vh] flex flex-col">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="bg-brand-100 dark:bg-brand-900/40 p-2 rounded-full text-brand-600 dark:text-brand-400 flex-shrink-0">
+                    <i data-lucide="sparkles" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Summarize Conversation</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Generate an AI summary of this chat.</p>
+                </div>
+            </div>
+
+            <div class="space-y-4 overflow-y-auto flex-1 pr-2 no-scrollbar pb-2">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Select Model</label>
+                    <div class="relative custom-dropdown" id="summarize-dropdown-container">
+                        <button type="button" onclick="toggleSummarizeDropdown(event)" class="w-full flex items-center justify-between bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-gray-800 dark:text-white focus:border-brand-400 dark:focus:border-brand-500 transition-colors">
+                            <div class="flex items-center gap-2" id="summarize-selected-model">
+                                <!-- Populated by JS -->
+                            </div>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 dark:text-gray-500"></i>
+                        </button>
+                        <div id="summarize-dropdown-menu" class="hidden absolute top-full left-0 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Result Area -->
+                <div id="summarize-result-container" class="hidden flex-col gap-2 h-64">
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">Summary Result</label>
+                    <div id="summarize-result-content" class="w-full h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-800 dark:text-white overflow-y-auto whitespace-pre-wrap leading-relaxed">
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div id="summarize-loading" class="hidden flex flex-col items-center justify-center py-8">
+                    <i data-lucide="loader-2" class="w-8 h-8 text-brand-500 animate-spin mb-3"></i>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Reading conversation...</p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3 border-t border-gray-100 dark:border-gray-700 pt-5 flex-shrink-0">
+                <button onclick="closeSummarizeModal()" class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl font-bold transition-colors">Close</button>
+                <button id="btn-generate-summary" onclick="generateSummary()" class="px-6 py-2.5 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl font-bold shadow-sm transition-transform active:scale-95 flex items-center gap-2">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i> Generate
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main App Container -->
     <div class="flex-1 w-full bg-white dark:bg-gray-900 overflow-hidden flex flex-col relative transition-colors duration-300">
         
@@ -480,6 +526,9 @@
                         <p id="chat-subtitle" class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">3 members</p>
                     </div>
                 </div>
+                <button onclick="openSummarizeModal()" class="p-2 ml-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500 dark:text-gray-400 flex-shrink-0" title="Summarize Conversation">
+                    <i data-lucide="file-text" class="w-6 h-6"></i>
+                </button>
                 <button onclick="openChatConfig()" class="p-2 ml-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500 dark:text-gray-400 flex-shrink-0" title="Chat Configuration">
                     <i data-lucide="settings" class="w-6 h-6"></i>
                 </button>
@@ -568,8 +617,8 @@
                     <div id="archive-toolbar" class="hidden mb-4 bg-white dark:bg-gray-800 p-3 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
                         <label class="flex items-center gap-3 cursor-pointer text-gray-700 dark:text-gray-300 font-semibold text-sm select-none px-2 group/chk">
                             <input type="checkbox" id="archive-select-all" class="peer sr-only" onchange="toggleSelectAllArchives(event)">
-                            <div class="w-5 h-5 rounded-md border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors group-hover/chk:border-brand-400">
-                                <i data-lucide="check" class="w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity stroke-[3]"></i>
+                            <div class="w-5 h-5 rounded-md border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors group-hover/chk:border-brand-400 [&_svg]:hidden peer-checked:[&_svg]:block">
+                                <i data-lucide="check" class="w-3.5 h-3.5 text-white stroke-[3]"></i>
                             </div>
                             Select All
                         </label>
@@ -737,6 +786,9 @@
         
         let selectedRecipients = new Set();
         let recipientMenuOpen = false;
+        
+        let summarizeSelectedModelId = AVAILABLE_MODELS[0].id;
+        let summarizeDropdownOpen = false;
 
         // --- Core Helpers ---
         function getUniqueName(baseName, membersList, excludeId = null) {
@@ -1028,8 +1080,8 @@
             let html = `
                 <label class="flex items-center gap-3 p-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer rounded-lg transition-colors border-b border-gray-100 dark:border-gray-700 mb-1 group/chk">
                     <input type="checkbox" class="peer sr-only" ${allSelected ? 'checked' : ''} onchange="toggleAllRecipients(event)">
-                    <div class="w-5 h-5 rounded-md border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors group-hover/chk:border-brand-400 flex-shrink-0">
-                        <i data-lucide="check" class="w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity stroke-[3]"></i>
+                    <div class="w-5 h-5 rounded-md border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors group-hover/chk:border-brand-400 flex-shrink-0 [&_svg]:hidden peer-checked:[&_svg]:block">
+                        <i data-lucide="check" class="w-3.5 h-3.5 text-white stroke-[3]"></i>
                     </div>
                     <span class="text-sm font-bold text-gray-800 dark:text-white">Everyone</span>
                 </label>
@@ -1040,8 +1092,8 @@
                 html += `
                     <label class="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer rounded-lg transition-colors group/chk">
                         <input type="checkbox" class="peer sr-only" ${isChecked ? 'checked' : ''} onchange="toggleRecipient('${m.id}', event)">
-                        <div class="w-5 h-5 rounded-md border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors group-hover/chk:border-brand-400 flex-shrink-0">
-                            <i data-lucide="check" class="w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity stroke-[3]"></i>
+                        <div class="w-5 h-5 rounded-md border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors group-hover/chk:border-brand-400 flex-shrink-0 [&_svg]:hidden peer-checked:[&_svg]:block">
+                            <i data-lucide="check" class="w-3.5 h-3.5 text-white stroke-[3]"></i>
                         </div>
                         <span class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">${escapeHTML(m.customName)}</span>
                     </label>
@@ -1059,6 +1111,7 @@
                 btn.classList.add('text-brand-600', 'bg-brand-50', 'dark:text-brand-400', 'dark:bg-brand-900/30');
                 btn.classList.remove('text-gray-500', 'dark:text-gray-400');
             }
+            refreshIcons();
         }
 
         function toggleAllRecipients(event) {
@@ -1081,6 +1134,144 @@
                 selectedRecipients.delete(id);
             }
             renderRecipientMenu();
+        }
+        
+        // --- Summarize Conversation Logic ---
+        function renderSummarizeDropdownOptions() {
+            const menu = document.getElementById('summarize-dropdown-menu');
+            if(!menu) return;
+            menu.innerHTML = AVAILABLE_MODELS.map(m => `
+                <div onclick="selectSummarizeModel('${m.id}')" class="px-4 py-2.5 hover:bg-brand-50 dark:hover:bg-gray-700 cursor-pointer flex items-center gap-3 transition-colors text-gray-700 dark:text-gray-300 font-medium">
+                    <div class="w-4 h-4 flex items-center justify-center">${getModelLogoHtml(m, 'w-4 h-4')}</div>
+                    ${m.name}
+                </div>
+            `).join('');
+            updateSummarizeDropdownUI();
+        }
+
+        function updateSummarizeDropdownUI() {
+            const modelDef = AVAILABLE_MODELS.find(m => m.id === summarizeSelectedModelId);
+            const container = document.getElementById('summarize-selected-model');
+            if(!container || !modelDef) return;
+            container.innerHTML = `
+                <div class="w-4 h-4 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-4 h-4')}</div>
+                <span class="font-medium">${modelDef.name}</span>
+            `;
+        }
+
+        function toggleSummarizeDropdown(event) {
+            if(event) event.stopPropagation();
+            summarizeDropdownOpen = !summarizeDropdownOpen;
+            const menu = document.getElementById('summarize-dropdown-menu');
+            if(!menu) return;
+            if (summarizeDropdownOpen) menu.classList.remove('hidden');
+            else menu.classList.add('hidden');
+        }
+
+        function selectSummarizeModel(modelId) {
+            summarizeSelectedModelId = modelId;
+            updateSummarizeDropdownUI();
+            summarizeDropdownOpen = false;
+            document.getElementById('summarize-dropdown-menu').classList.add('hidden');
+        }
+
+        function openSummarizeModal() {
+            const chat = getActiveChat();
+            if (!chat) return;
+            
+            document.getElementById('summarize-result-container').classList.add('hidden');
+            document.getElementById('summarize-result-container').classList.remove('flex');
+            document.getElementById('summarize-loading').classList.add('hidden');
+            document.getElementById('summarize-result-content').innerText = '';
+            
+            summarizeSelectedModelId = AVAILABLE_MODELS[0].id;
+            updateSummarizeDropdownUI();
+            
+            document.getElementById('summarize-modal').classList.remove('hidden');
+        }
+
+        function closeSummarizeModal() {
+            document.getElementById('summarize-modal').classList.add('hidden');
+        }
+
+        async function generateSummary() {
+            const chat = getActiveChat();
+            if (!chat) return;
+            
+            if (chat.messages.length === 0) {
+                showToast("No messages to summarize yet.");
+                return;
+            }
+
+            document.getElementById('summarize-result-container').classList.add('hidden');
+            document.getElementById('summarize-result-container').classList.remove('flex');
+            document.getElementById('summarize-loading').classList.remove('hidden');
+            const btn = document.getElementById('btn-generate-summary');
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            let transcript = "Chat Transcript:\n\n";
+            chat.messages.forEach(msg => {
+                const senderName = msg.sender === 'user' ? state.userProfile.name : (chat.members.find(m => m.id === msg.sender)?.customName || 'Unknown AI');
+                let txt = msg.originalText || msg.text;
+                if (msg.commands && msg.commands.length > 0) {
+                    const cmds = msg.commands.map(c => `[Action: ${c.command} - ${c.context}]`).join(' ');
+                    txt += ` ${cmds}`;
+                }
+                if (msg.to && msg.to.length > 0) {
+                    txt = `(Whispering to ${msg.to.join(', ')}): ${txt}`;
+                }
+                transcript += `**${senderName}**: ${txt}\n`;
+            });
+
+            const modelDef = AVAILABLE_MODELS.find(m => m.id === summarizeSelectedModelId) || AVAILABLE_MODELS[0];
+            const puterModelId = modelDef.puterId;
+            
+            const puterMessages = [
+                { role: 'system', content: "You are an expert assistant. Provide a comprehensive but concise summary of the following chat conversation. Highlight the main topics discussed, key actions taken, and any decisions made." },
+                { role: 'user', content: transcript }
+            ];
+
+            try {
+                const response = await puter.ai.chat(puterMessages, {
+                    model: puterModelId,
+                    stream: false
+                });
+                
+                let summaryText = "";
+                if (typeof response === 'string') {
+                    summaryText = response.trim();
+                } else if (response?.message?.content) {
+                    summaryText = response.message.content.trim();
+                } else if (response?.text) {
+                    summaryText = response.text.trim();
+                } else {
+                    summaryText = String(response).trim();
+                }
+
+                document.getElementById('summarize-result-content').innerText = summaryText || "Summary could not be generated.";
+                
+            } catch (error) {
+                const errMsg = error?.message || (typeof error === 'string' ? error : JSON.stringify(error, Object.getOwnPropertyNames(error))) || 'Unknown Error';
+                
+                if (errMsg.includes('_puterReq') || errMsg.includes('Failed to fetch') || errMsg.includes('Network Error')) {
+                    if (!puter.auth.isSignedIn()) {
+                        document.getElementById('summarize-result-content').innerHTML = `Puter blocked the connection. You must <button type="button" onclick="togglePuterAuth(); closeSummarizeModal(); navTo('settings');" class="underline font-bold text-red-700 dark:text-red-300">Sign in to Puter</button> to summarize chats on Neocities.`;
+                    } else {
+                        document.getElementById('summarize-result-content').innerText = `API Blocked (Error: ${errMsg})`;
+                    }
+                } else {
+                    document.getElementById('summarize-result-content').innerText = `Error generating summary: ${errMsg}`;
+                }
+            }
+
+            document.getElementById('summarize-loading').classList.add('hidden');
+            document.getElementById('summarize-result-container').classList.remove('hidden');
+            document.getElementById('summarize-result-container').classList.add('flex');
+            
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            refreshIcons();
         }
 
         // --- Chat Configuration Logic ---
@@ -1157,6 +1348,7 @@
             renderCharactersList();
             renderModalDropdownOptions();
             renderCharacterModalDropdownOptions();
+            renderSummarizeDropdownOptions();
             
             document.addEventListener('click', (e) => {
                 if (activeDropdownId && !e.target.closest('.custom-dropdown:not(#modal-dropdown-container):not(#character-dropdown-container)')) {
@@ -1166,6 +1358,11 @@
                     modalDropdownOpen = false;
                     document.getElementById('modal-dropdown-menu').classList.add('hidden');
                     document.getElementById('character-dropdown-menu').classList.add('hidden');
+                }
+                if (summarizeDropdownOpen && !e.target.closest('#summarize-dropdown-container')) {
+                    summarizeDropdownOpen = false;
+                    const menu = document.getElementById('summarize-dropdown-menu');
+                    if (menu) menu.classList.add('hidden');
                 }
                 if (userDropdownOpen && !e.target.closest('.user-dropdown-container')) {
                     closeUserDropdown();
@@ -2165,8 +2362,8 @@
                         
                         <label class="flex-shrink-0 cursor-pointer group/chk">
                             <input type="checkbox" class="peer sr-only" ${isSelected ? 'checked' : ''} onchange="toggleArchiveSelection('${chat.id}')">
-                            <div class="w-5 h-5 rounded-md border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors group-hover/chk:border-brand-400">
-                                <i data-lucide="check" class="w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity stroke-[3]"></i>
+                            <div class="w-5 h-5 rounded-md border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors group-hover/chk:border-brand-400 [&_svg]:hidden peer-checked:[&_svg]:block">
+                                <i data-lucide="check" class="w-3.5 h-3.5 text-white stroke-[3]"></i>
                             </div>
                         </label>
 
