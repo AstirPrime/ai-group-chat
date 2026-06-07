@@ -2037,7 +2037,7 @@
                     if (m.customAvatar) {
                          return `<img src="${m.customAvatar}" class="w-8 h-8 rounded-full border-2 border-gray-50 dark:border-gray-900 object-cover ${shift}" style="z-index:${zIndex}">`;
                     }
-                    return `<div class="w-8 h-8 rounded-full border-2 border-gray-50 dark:border-gray-900 bg-gray-200 dark:bg-gray-700 flex items-center justify-center ${shift} overflow-hidden" style="z-index:${zIndex}"><div class="w-4 h-4 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-4 h-4')}</div></div>`;
+                    return `<div class="w-8 h-8 rounded-full border-2 border-gray-50 dark:border-gray-900 bg-gray-200 dark:bg-gray-700 flex items-center justify-center ${shift} overflow-hidden" style="z-index:${zIndex}"><div class="w-5 h-5 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-5 h-5')}</div></div>`;
                 }).join('');
 
                 const html = `
@@ -2125,6 +2125,7 @@
                 text: censoredText,
                 originalText: originalText,
                 wasCensored: hasBadWords,
+                to: [], // Empty means public
                 timestamp: new Date().toISOString()
             };
             chat.messages.push(userMsg);
@@ -2208,11 +2209,24 @@
                     sysContent += `\n\nYou have access to special commands. To use a command, format it EXACTLY as <command_name/context> anywhere in your message. For example, <action/picks up the cup> or <emotion/happy>. Other AIs will NOT see these commands, only the human user. Available commands you can use:\n${cmdList}\nDo not expose this syntax to the user in normal text, it will be parsed invisibly.`;
                 }
 
+                sysContent += `\n\nTARGETED MESSAGING: You can secretly send messages to specific participants by including <to/"Name 1", "Name 2"> in your message. To message only the user, use <to/user>. If you do not include this tag, your message is public to everyone. This tag will be hidden from the final text.`;
+
                 sysContent += `\n\nTEXT FORMATTING: You are strictly limited to the following formatting options ONLY. Do NOT use standard markdown like headers (#), lists (-), links, or code blocks (\`\`\`). Allowed formats ONLY: *italics*, **bold**, __underline__, --strikethrough--. Use these exact symbols, do not use HTML tags.`;
+
+                const visibleMessages = recentMessages.filter(msg => {
+                    if (!msg.to || msg.to.length === 0) return true; // public
+                    if (msg.sender === ai.id) return true; // sent by this AI
+                    
+                    // Check if this AI is specifically targeted
+                    return msg.to.some(targetName => 
+                        targetName.toLowerCase() === ai.customName.toLowerCase() || 
+                        targetName.toLowerCase() === 'everyone'
+                    );
+                });
 
                 // Construct Messages array for Puter API
                 const puterMessages = [{ role: 'system', content: sysContent }];
-                for (const msg of recentMessages) {
+                for (const msg of visibleMessages) {
                     let role = msg.sender === 'user' ? 'user' : (msg.sender === ai.id ? 'assistant' : 'user');
                     let content = msg.originalText || msg.text;
                     
@@ -2223,7 +2237,14 @@
                     // Prefix other users/AIs speaking
                     if (msg.sender !== ai.id) {
                         const senderName = msg.sender === 'user' ? state.userProfile.name : (chat.members.find(m => m.id === msg.sender)?.customName || 'Someone');
-                        content = `[${senderName} says]: ${content}`;
+                        let prefix = `[${senderName}`;
+                        
+                        if (msg.to && msg.to.length > 0) {
+                            prefix += ` (whispering to ${msg.to.join(', ')})`;
+                        }
+                        
+                        prefix += ` says]: `;
+                        content = `${prefix}${content}`;
                     }
                     puterMessages.push({ role, content });
                 }
@@ -2231,6 +2252,7 @@
                 let aiGeneratedText = "";
                 let isError = false;
                 let extractedCommands = [];
+                let targetedTo = [];
                 
                 try {
                     const puterModelId = ai.puterId || (modelDef ? modelDef.puterId : 'gpt-4o-mini');
@@ -2251,9 +2273,17 @@
                     
                     if (!aiGeneratedText) aiGeneratedText = "*nods silently*";
                     
+                    // Parse <to/...> targeting tag
+                    const toRegex = /<to\/([^>]+)>/i;
+                    let textWithoutTo = aiGeneratedText.replace(toRegex, (match, recipientsStr) => {
+                        targetedTo = recipientsStr.split(',').map(s => s.replace(/["']/g, '').trim()).filter(Boolean);
+                        return '';
+                    }).trim();
+
+                    // Parse custom command tags
                     const allowedCommands = chat.commands ? chat.commands.map(c => c.name.toLowerCase()) : [];
                     const cmdRegex = /<([^/>]+)\/([^>]+)>/g;
-                    let cleanText = aiGeneratedText.replace(cmdRegex, (match, cmd, ctx) => {
+                    let cleanText = textWithoutTo.replace(cmdRegex, (match, cmd, ctx) => {
                         if (allowedCommands.includes(cmd.trim().toLowerCase())) {
                             extractedCommands.push({ command: cmd.trim(), context: ctx.trim() });
                             return '';
@@ -2295,6 +2325,7 @@
                     sender: ai.id,
                     text: aiGeneratedText,
                     commands: typeof extractedCommands !== 'undefined' ? extractedCommands : [],
+                    to: targetedTo,
                     isAICensored: false,
                     isAIError: isError,
                     timestamp: new Date().toISOString()
@@ -2323,6 +2354,14 @@
             const isUser = msg.sender === 'user';
             const chat = getActiveChat();
             
+            const toPillHtml = (msg.to && msg.to.length > 0)
+                ? `<div class="text-[10px] font-bold text-brand-500 dark:text-brand-400 uppercase tracking-wider mb-1 ml-1 flex items-center gap-1"><i data-lucide="lock" class="w-3 h-3"></i> To: ${escapeHTML(msg.to.join(', '))}</div>`
+                : '';
+                
+            const userToPillHtml = (msg.to && msg.to.length > 0)
+                ? `<div class="text-[10px] font-bold text-brand-500 dark:text-brand-400 uppercase tracking-wider mb-1 mr-1 flex items-center gap-1 justify-end"><i data-lucide="lock" class="w-3 h-3"></i> To: ${escapeHTML(msg.to.join(', '))}</div>`
+                : '';
+            
             let html = '';
             if (isUser) {
                 const userAvatarHtml = state.userProfile.avatar 
@@ -2333,6 +2372,7 @@
                     <div class="flex justify-end mb-6 gap-3">
                         <div class="max-w-[85%] sm:max-w-[75%] flex flex-col items-end">
                             <span class="text-xs font-bold text-gray-500 dark:text-gray-400 mr-1 mb-1.5 block">${escapeHTML(state.userProfile.name)}</span>
+                            ${userToPillHtml}
                             <div class="bg-gradient-to-br from-brand-500 to-brand-600 text-white px-6 py-3.5 rounded-3xl rounded-tr-sm shadow-sm w-full text-left">
                                 <p class="text-base break-words whitespace-pre-wrap leading-relaxed">${formatText(msg.text)}</p>
                             </div>
@@ -2386,6 +2426,7 @@
                         </div>
                         <div class="max-w-[85%] sm:max-w-[75%]">
                             <span class="text-xs font-bold text-gray-500 dark:text-gray-400 ml-1 mb-1.5 block">${ai.customName}</span>
+                            ${toPillHtml}
                             ${bubbleHtml}
                             ${commandsHtml}
                         </div>
