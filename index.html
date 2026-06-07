@@ -599,16 +599,16 @@
                 logo: 'https://www.google.com/s2/favicons?domain=anthropic.com&sz=128' 
             },
             { 
-                id: 'gemini-1-5-flash', name: 'Gemini 1.5 Flash', puterId: 'gemini-1.5-flash', 
+                id: 'gemini-2-5-flash', name: 'Gemini 2.5 Flash', puterId: 'gemini-2.5-flash', 
                 logo: 'https://www.google.com/s2/favicons?domain=google.com&sz=128' 
             },
             { 
-                id: 'llama-3.1', name: 'Llama 3.1 8B', puterId: 'meta-llama/Meta-Llama-3.1-8B-Instruct', 
+                id: 'llama-3-8b', name: 'Llama 3 8B', puterId: 'llama-3-8b', 
                 logo: 'https://www.google.com/s2/favicons?domain=meta.com&sz=128' 
             },
             { 
-                id: 'mistral-nemo', name: 'Mistral Nemo', puterId: 'mistralai/Mistral-Nemo-Instruct-2407', 
-                logo: 'https://www.google.com/s2/favicons?domain=mistral.ai&sz=128' 
+                id: 'deepseek-chat', name: 'DeepSeek Chat', puterId: 'deepseek-chat', 
+                logo: 'https://www.google.com/s2/favicons?domain=deepseek.com&sz=128' 
             }
         ];
 
@@ -868,10 +868,19 @@
         function navTo(screen) {
             const screens = ['home', 'create', 'chat', 'archived', 'characters', 'settings'];
             
-            // Push all screens off-screen
             screens.forEach(s => {
                 const el = document.getElementById(`screen-${s}`);
-                if (el) el.style.transform = 'translateX(100%)';
+                if (!el) return;
+                
+                if (s === screen) {
+                    el.style.transform = 'translateX(0)';
+                } else if (s === 'home') {
+                    // Push home slightly left if a child screen covers it
+                    el.style.transform = 'translateX(-30%)';
+                } else {
+                    // Push other child screens completely off to the right
+                    el.style.transform = 'translateX(100%)';
+                }
             });
 
             // Specific prep before sliding in
@@ -890,15 +899,8 @@
             } else if (screen === 'characters') {
                 renderCharactersList();
             } else if (screen === 'settings') {
-                applyTheme(); // Ensure toggle visual is correct
+                applyTheme(); 
             }
-
-            // Slide in target, slide home back if it's a child screen
-            const targetEl = document.getElementById(`screen-${screen}`);
-            const homeEl = document.getElementById('screen-home');
-            
-            if (targetEl) targetEl.style.transform = 'translateX(0)';
-            if (screen !== 'home' && homeEl) homeEl.style.transform = 'translateX(-30%)';
         }
 
         // --- UI Utilities ---
@@ -1350,7 +1352,7 @@
         function resetDraftMembers() {
             state.draftMembers = [
                 { id: generateId(), type: 'ai', customName: 'GPT-4o Mini', modelId: 'gpt-4o-mini', customAvatar: null, puterId: 'gpt-4o-mini' },
-                { id: generateId(), type: 'ai', customName: 'Gemini 1.5 Flash', modelId: 'gemini-1-5-flash', customAvatar: null, puterId: 'gemini-1.5-flash' }
+                { id: generateId(), type: 'ai', customName: 'Gemini 2.5 Flash', modelId: 'gemini-2-5-flash', customAvatar: null, puterId: 'gemini-2.5-flash' }
             ];
         }
 
@@ -1935,7 +1937,7 @@
                 if (ai.type === 'character') {
                     sysContent += `Adopt this persona entirely based on this info: Personality: ${ai.personality || 'Unknown'}. Background info: ${ai.background || 'Unknown'}.`;
                 } else {
-                    sysContent += `You are roleplaying as the AI model: ${modelDef ? modelDef.name : 'an advanced AI'}. Provide a helpful, direct response as that AI.`;
+                    sysContent += `You are the AI model: ${modelDef ? modelDef.name : 'an advanced AI'}. Provide a helpful, direct response as that AI.`;
                 }
 
                 // Construct Messages array for Puter API
