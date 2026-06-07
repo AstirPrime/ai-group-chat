@@ -9,8 +9,7 @@
     
     <!-- Configure Puter BEFORE loading the script to silence it -->
     <script>
-        window.puter = window.puter || {};
-        window.puter.quiet = true;
+        var puter = { quiet: true };
     </script>
     <!-- Puter.js for AI functionality -->
     <script src="https://js.puter.com/v2/"></script>
@@ -215,7 +214,7 @@
                 </div>
 
                 <div id="character-modal-error" class="hidden mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5">
-                    <i data-lucide="alert-circle" class="w-4 h-4"></i> Inappropriate text detected.
+                    <i data-lucide="alert-circle" class="w-4 h-4"></i> Error message.
                 </div>
             </div>
             
@@ -271,6 +270,51 @@
             <div class="flex justify-end gap-3">
                 <button onclick="closeConfirmModal()" class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl font-bold transition-colors">Cancel</button>
                 <button onclick="handleConfirmAction()" class="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-sm transition-transform active:scale-95" id="confirm-danger-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Config Modal -->
+    <div id="chat-config-modal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 z-[60] flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl transform transition-transform mx-4 border border-transparent dark:border-gray-700 max-h-[90vh] flex flex-col">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="bg-brand-100 dark:bg-brand-900/40 p-2 rounded-full text-brand-600 dark:text-brand-400 flex-shrink-0">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Chat Configuration</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Apply rules to all AIs in this room.</p>
+                </div>
+            </div>
+            
+            <div class="space-y-6 overflow-y-auto flex-1 pr-2 no-scrollbar pb-2">
+                <!-- Conversation Context -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Global Context</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Instructions or scenarios forced upon all members.</p>
+                    <textarea id="chat-context-input" rows="3" placeholder="e.g. We are on a spaceship traveling to Mars..." class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 focus:border-brand-400 dark:focus:border-brand-500 transition-colors text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none"></textarea>
+                </div>
+
+                <!-- AI Commands -->
+                <div>
+                    <div class="flex justify-between items-end mb-2">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">Custom Commands</label>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Define hidden commands AIs can use. Format: &lt;command/context&gt;</p>
+                        </div>
+                        <button onclick="addCommandUI()" class="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 text-xs font-bold flex items-center gap-1 bg-brand-50 dark:bg-brand-900/30 px-2.5 py-1.5 rounded-lg transition-colors border border-brand-100 dark:border-brand-800 shadow-sm flex-shrink-0">
+                            <i data-lucide="plus" class="w-3 h-3"></i> Add
+                        </button>
+                    </div>
+                    <div id="chat-commands-container" class="space-y-2">
+                        <!-- Command rows populated here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end gap-3 border-t border-gray-100 dark:border-gray-700 pt-5 flex-shrink-0">
+                <button onclick="closeChatConfig()" class="px-4 py-2.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl font-bold transition-colors">Cancel</button>
+                <button onclick="saveChatConfig()" class="px-6 py-2.5 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl font-bold shadow-sm transition-transform active:scale-95">Save</button>
             </div>
         </div>
     </div>
@@ -419,6 +463,9 @@
                         <p id="chat-subtitle" class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">3 members</p>
                     </div>
                 </div>
+                <button onclick="openChatConfig()" class="p-2 ml-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500 dark:text-gray-400 flex-shrink-0" title="Chat Configuration">
+                    <i data-lucide="settings" class="w-6 h-6"></i>
+                </button>
             </header>
 
             <!-- Messages Area -->
@@ -585,7 +632,7 @@
         // --- Logo Helper ---
         function getModelLogoHtml(modelDef, classes = "w-6 h-6") {
             const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(modelDef.name)}&background=f3e8ff&color=9333ea&bold=true`;
-            return `<img src="${modelDef.logo}" class="${classes} object-contain rounded-sm shadow-sm bg-white" onerror="this.onerror=null; this.src='${fallback}'" alt="${modelDef.name}">`;
+            return `<img src="${modelDef.logo}" class="${classes} object-contain" onerror="this.onerror=null; this.src='${fallback}'" alt="${modelDef.name}">`;
         }
 
         // --- State Management ---
@@ -595,16 +642,8 @@
                 logo: 'https://www.google.com/s2/favicons?domain=openai.com&sz=128' 
             },
             { 
-                id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', puterId: 'claude-3-5-sonnet', 
-                logo: 'https://www.google.com/s2/favicons?domain=anthropic.com&sz=128' 
-            },
-            { 
                 id: 'gemini-2-5-flash', name: 'Gemini 2.5 Flash', puterId: 'gemini-2.5-flash', 
                 logo: 'https://www.google.com/s2/favicons?domain=google.com&sz=128' 
-            },
-            { 
-                id: 'llama-3-8b', name: 'Llama 3 8B', puterId: 'llama-3-8b', 
-                logo: 'https://www.google.com/s2/favicons?domain=meta.com&sz=128' 
             },
             { 
                 id: 'deepseek-chat', name: 'DeepSeek Chat', puterId: 'deepseek-chat', 
@@ -637,6 +676,18 @@
         let modalDropdownOpen = false;
         let promptCallback = null;
         let confirmCallback = null;
+
+        // --- Core Helpers ---
+        function getUniqueName(baseName, membersList, excludeId = null) {
+            let newName = baseName;
+            let counter = 1;
+            const existingNames = membersList.filter(m => m.id !== excludeId).map(m => m.customName.toLowerCase());
+            while (existingNames.includes(newName.toLowerCase())) {
+                newName = `${baseName} (${counter})`;
+                counter++;
+            }
+            return newName;
+        }
 
         // --- Safety Checking ---
         const BAD_WORDS = ['heck', 'darn', 'stupid', 'idiot', 'jerk', 'crap', 'dumb', 'fool'];
@@ -817,6 +868,67 @@
             errEl.innerHTML = `<i data-lucide="alert-circle" class="w-4 h-4"></i> ${message}`;
             errEl.classList.remove('hidden');
             refreshIcons();
+        }
+
+        // --- Chat Configuration Logic ---
+        function openChatConfig() {
+            const chat = getActiveChat();
+            if (!chat) return;
+            
+            document.getElementById('chat-context-input').value = chat.conversationContext || '';
+            
+            const container = document.getElementById('chat-commands-container');
+            container.innerHTML = '';
+            
+            if (chat.commands && chat.commands.length > 0) {
+                chat.commands.forEach(cmd => addCommandUI(cmd.name, cmd.description));
+            }
+            
+            document.getElementById('chat-config-modal').classList.remove('hidden');
+        }
+
+        function closeChatConfig() {
+            document.getElementById('chat-config-modal').classList.add('hidden');
+        }
+        
+        function addCommandUI(name = '', desc = '') {
+            const container = document.getElementById('chat-commands-container');
+            const rowId = generateId();
+            const html = `
+                <div id="cmd-${rowId}" class="command-row flex gap-2 items-start bg-white dark:bg-gray-800 p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm transition-colors">
+                    <div class="flex-1 space-y-2">
+                        <input type="text" placeholder="Command Name (e.g. action)" value="${escapeHTML(name)}" class="cmd-name w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm focus:border-brand-400 dark:focus:border-brand-500 transition-colors text-gray-800 dark:text-white placeholder-gray-400">
+                        <input type="text" placeholder="Description (e.g. performs a physical action)" value="${escapeHTML(desc)}" class="cmd-desc w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm focus:border-brand-400 dark:focus:border-brand-500 transition-colors text-gray-800 dark:text-white placeholder-gray-400">
+                    </div>
+                    <button onclick="document.getElementById('cmd-${rowId}').remove()" class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors mt-1">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', html);
+            refreshIcons();
+        }
+
+        function saveChatConfig() {
+            const chat = getActiveChat();
+            if (!chat) return;
+            
+            chat.conversationContext = document.getElementById('chat-context-input').value.trim();
+            
+            const commandRows = document.querySelectorAll('.command-row');
+            const newCommands = [];
+            commandRows.forEach(row => {
+                const name = row.querySelector('.cmd-name').value.trim();
+                const desc = row.querySelector('.cmd-desc').value.trim();
+                if (name) {
+                    newCommands.push({ name, description: desc });
+                }
+            });
+            chat.commands = newCommands;
+            
+            saveState();
+            closeChatConfig();
+            showToast("Chat configuration saved.");
         }
 
         // --- Initialization ---
@@ -1052,6 +1164,16 @@
                 refreshIcons();
                 return;
             }
+            
+            // Check for exact duplicate character names across the entire roster
+            const nameLower = name.toLowerCase();
+            if (state.characters.some(c => c.name.toLowerCase() === nameLower)) {
+                const err = document.getElementById('character-modal-error');
+                err.innerHTML = `<i data-lucide="alert-circle" class="w-4 h-4"></i> A character with this name already exists.`;
+                err.classList.remove('hidden');
+                refreshIcons();
+                return;
+            }
 
             const modelDef = AVAILABLE_MODELS.find(m => m.id === modalSelectedModelId);
 
@@ -1256,7 +1378,9 @@
         function confirmAddAI() {
             const nameInput = document.getElementById('modal-ai-name').value.trim();
             const modelDef = AVAILABLE_MODELS.find(m => m.id === modalSelectedModelId);
-            const aiName = nameInput || modelDef.name;
+            let aiName = nameInput || modelDef.name;
+            
+            aiName = getUniqueName(aiName, state.draftMembers);
 
             if (!checkSafety(aiName)) {
                 document.getElementById('modal-ai-error').classList.remove('hidden');
@@ -1332,11 +1456,23 @@
             const char = state.characters.find(c => c.id === charId);
             if (!char) return;
 
+            if (state.draftMembers.some(m => m.characterId === char.id)) {
+                showToast("Character is already in the group.");
+                return;
+            }
+
+            // Standard AI name check: Demote standard AIs if they share the exact name of the character
+            state.draftMembers.forEach(m => {
+                if (m.type === 'ai' && m.customName.toLowerCase() === char.name.toLowerCase()) {
+                    m.customName = getUniqueName(`${m.customName} (1)`, state.draftMembers, m.id);
+                }
+            });
+
             state.draftMembers.push({
                 id: generateId(),
                 type: 'character',
                 characterId: char.id,
-                customName: char.name,
+                customName: char.name, // Characters retain true naming priority
                 modelId: char.modelId,
                 customAvatar: char.avatar,
                 personality: char.personality,
@@ -1378,7 +1514,11 @@
             const errorDiv = document.getElementById(`draft-error-${id}`);
             if (errorDiv) errorDiv.classList.add('hidden');
             
-            if (member) member.customName = newName;
+            const uniqueName = getUniqueName(newName, state.draftMembers, id);
+            if (member) {
+                member.customName = uniqueName;
+                document.getElementById(`input-${id}`).value = uniqueName;
+            }
         }
 
         function toggleDropdown(dropdownId) {
@@ -1404,8 +1544,12 @@
             if (member) {
                 const newModelDef = AVAILABLE_MODELS.find(m => m.id === modelId);
                 member.modelId = modelId;
-                member.customName = newModelDef.name;
+                
+                const uniqueName = getUniqueName(newModelDef.name, state.draftMembers, memberId);
+                member.customName = uniqueName;
                 member.puterId = newModelDef.puterId;
+                
+                document.getElementById(`input-${memberId}`).value = uniqueName;
             }
             closeAllDropdowns();
             renderDraftMembers();
@@ -1474,7 +1618,7 @@
                 
                 const avatarContent = member.customAvatar 
                     ? `<img src="${member.customAvatar}" class="w-full h-full object-cover">`
-                    : `<div class="w-6 h-6 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-6 h-6')}</div>`;
+                    : `<div class="w-10 h-10 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-10 h-10')}</div>`;
 
                 let html = '';
                 
@@ -1597,7 +1741,7 @@
                     if (m.customAvatar) {
                          return `<img src="${m.customAvatar}" class="w-12 h-12 rounded-full border-[3px] border-white dark:border-gray-800 object-cover ${shift} shadow-sm" style="z-index:${zIndex}">`;
                     }
-                    return `<div class="w-12 h-12 rounded-full border-[3px] border-white dark:border-gray-800 bg-brand-100 dark:bg-gray-700 flex items-center justify-center ${shift} shadow-sm overflow-hidden" style="z-index:${zIndex}"><div class="w-7 h-7 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-7 h-7')}</div></div>`;
+                    return `<div class="w-12 h-12 rounded-full border-[3px] border-white dark:border-gray-800 bg-brand-100 dark:bg-gray-700 flex items-center justify-center ${shift} shadow-sm overflow-hidden" style="z-index:${zIndex}"><div class="w-8 h-8 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-8 h-8')}</div></div>`;
                 }).join('');
 
                 const html = `
@@ -1780,7 +1924,7 @@
                     if (m.customAvatar) {
                          return `<img src="${m.customAvatar}" class="w-8 h-8 rounded-full border-2 border-gray-50 dark:border-gray-900 object-cover ${shift}" style="z-index:${zIndex}">`;
                     }
-                    return `<div class="w-8 h-8 rounded-full border-2 border-gray-50 dark:border-gray-900 bg-gray-200 dark:bg-gray-700 flex items-center justify-center ${shift} overflow-hidden" style="z-index:${zIndex}"><div class="w-4 h-4 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-4 h-4')}</div></div>`;
+                    return `<div class="w-8 h-8 rounded-full border-2 border-gray-50 dark:border-gray-900 bg-gray-200 dark:bg-gray-700 flex items-center justify-center ${shift} overflow-hidden" style="z-index:${zIndex}"><div class="w-5 h-5 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-5 h-5')}</div></div>`;
                 }).join('');
 
                 const html = `
@@ -1890,7 +2034,7 @@
             const modelDef = AVAILABLE_MODELS.find(m => m.id === modelId) || AVAILABLE_MODELS[0];
             const avatarHtml = avatarUrl
                 ? `<img src="${avatarUrl}" class="w-10 h-10 rounded-full object-cover">`
-                : `<div class="w-10 h-10 rounded-full bg-brand-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden"><div class="w-6 h-6 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-6 h-6')}</div></div>`;
+                : `<div class="w-10 h-10 rounded-full bg-brand-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden"><div class="w-7 h-7 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-7 h-7')}</div></div>`;
 
             const html = `
                 <div id="active-typing-indicator" class="flex justify-start mb-6 gap-3 fade-in">
@@ -1932,12 +2076,21 @@
                 showTypingIndicator(ai.customName, ai.modelId, ai.customAvatar);
 
                 const modelDef = AVAILABLE_MODELS.find(m => m.id === ai.modelId);
-                let sysContent = `You are participating in a group chat. Your name is ${ai.customName}. Keep your response conversational and relatively concise. DO NOT prefix your message with your name. `;
+                let sysContent = `You are participating in a lively group chat with multiple AIs and a human user. Your name is ${ai.customName}. Engage directly with the other participants, not just the human. Feel free to disagree, debate, add unique perspectives, or banter. Do not just blindly agree. Keep it natural, conversational, and relatively concise. DO NOT prefix your message with your name. `;
                 
                 if (ai.type === 'character') {
                     sysContent += `Adopt this persona entirely based on this info: Personality: ${ai.personality || 'Unknown'}. Background info: ${ai.background || 'Unknown'}.`;
                 } else {
-                    sysContent += `You are the AI model: ${modelDef ? modelDef.name : 'an advanced AI'}. Provide a helpful, direct response as that AI.`;
+                    sysContent += `You are the AI model: ${modelDef ? modelDef.name : 'an advanced AI'}. Provide your unique perspective as that specific AI.`;
+                }
+
+                if (chat.conversationContext && chat.conversationContext.trim()) {
+                    sysContent += `\n\nGlobal Conversation Context (Apply this to your behavior/setting): ${chat.conversationContext.trim()}`;
+                }
+
+                if (chat.commands && chat.commands.length > 0) {
+                    const cmdList = chat.commands.map(c => `- ${c.name}: ${c.description}`).join('\n');
+                    sysContent += `\n\nYou have access to special commands. To use a command, format it EXACTLY as <command_name/context> anywhere in your message. For example, <action/picks up the cup> or <emotion/happy>. Other AIs will NOT see these commands, only the human user. Available commands you can use:\n${cmdList}\nDo not expose this syntax to the user in normal text, it will be parsed invisibly.`;
                 }
 
                 // Construct Messages array for Puter API
@@ -1956,6 +2109,8 @@
 
                 let aiGeneratedText = "";
                 let isError = false;
+                let extractedCommands = [];
+                
                 try {
                     const puterModelId = ai.puterId || (modelDef ? modelDef.puterId : 'gpt-4o-mini');
                     const response = await puter.ai.chat(puterMessages, {
@@ -1974,6 +2129,18 @@
                     }
                     
                     if (!aiGeneratedText) aiGeneratedText = "*nods silently*";
+                    
+                    const cmdRegex = /<([^/>]+)\/([^>]+)>/g;
+                    let cleanText = aiGeneratedText.replace(cmdRegex, (match, cmd, ctx) => {
+                        extractedCommands.push({ command: cmd.trim(), context: ctx.trim() });
+                        return '';
+                    }).trim();
+                    
+                    aiGeneratedText = cleanText;
+                    if (!aiGeneratedText && extractedCommands.length > 0) {
+                        aiGeneratedText = "*performed an action*";
+                    }
+
                 } catch (error) {
                     const errMsg = error?.message || (typeof error === 'string' ? error : JSON.stringify(error, Object.getOwnPropertyNames(error))) || 'Unknown Error';
                     
@@ -2002,6 +2169,7 @@
                     id: generateId(),
                     sender: ai.id,
                     text: aiGeneratedText,
+                    commands: typeof extractedCommands !== 'undefined' ? extractedCommands : [],
                     isAICensored: false,
                     isAIError: isError,
                     timestamp: new Date().toISOString()
@@ -2061,7 +2229,7 @@
                 const modelDef = AVAILABLE_MODELS.find(m => m.id === ai.modelId);
                 const avatarHtml = ai.customAvatar
                     ? `<img src="${ai.customAvatar}" class="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-gray-700">`
-                    : `<div class="w-10 h-10 rounded-full bg-brand-100 dark:bg-gray-800 flex items-center justify-center border border-gray-100 dark:border-gray-700 overflow-hidden"><div class="w-6 h-6 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-6 h-6')}</div></div>`;
+                    : `<div class="w-10 h-10 rounded-full bg-brand-100 dark:bg-gray-800 flex items-center justify-center border border-gray-100 dark:border-gray-700 overflow-hidden"><div class="w-7 h-7 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-7 h-7')}</div></div>`;
 
                 const bubbleHtml = msg.isAICensored 
                     ? `<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 text-red-700 dark:text-red-400 px-6 py-3.5 rounded-3xl rounded-tl-sm shadow-sm flex items-start gap-2.5">
@@ -2077,6 +2245,15 @@
                          <p class="text-base break-words whitespace-pre-wrap leading-relaxed">${escapeHTML(msg.text)}</p>
                        </div>`;
 
+                const commandsHtml = msg.commands && msg.commands.length > 0 
+                    ? `<div class="mt-2 space-y-1.5 flex flex-col items-start">` + msg.commands.map(cmd => 
+                        `<div class="text-xs text-brand-600 dark:text-brand-400 font-semibold bg-brand-50 dark:bg-brand-900/30 border border-brand-100 dark:border-brand-800 px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow-sm">
+                            <i data-lucide="terminal" class="w-3 h-3 flex-shrink-0"></i>
+                            <span>Command "<strong>${escapeHTML(cmd.command)}</strong>" executed: "${escapeHTML(cmd.context)}"</span>
+                        </div>`
+                    ).join('') + `</div>`
+                    : '';
+
                 html = `
                     <div class="flex justify-start mb-6 gap-3">
                         <div class="flex-shrink-0 mt-1">
@@ -2085,6 +2262,7 @@
                         <div class="max-w-[85%] sm:max-w-[75%]">
                             <span class="text-xs font-bold text-gray-500 dark:text-gray-400 ml-1 mb-1.5 block">${ai.customName}</span>
                             ${bubbleHtml}
+                            ${commandsHtml}
                         </div>
                     </div>
                 `;
