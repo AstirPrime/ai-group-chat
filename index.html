@@ -59,9 +59,20 @@
         .typing-dot:nth-child(3) { animation-delay: 0s; }
 
         /* Remove default input focus outline */
-        textarea:focus, input:focus {
+        textarea:focus, input:focus, [contenteditable]:focus {
             outline: none;
             box-shadow: none !important;
+        }
+        
+        /* ContentEditable Placeholder styling */
+        [contenteditable]:empty:before {
+            content: attr(data-placeholder);
+            color: #9ca3af; /* text-gray-400 */
+            pointer-events: none;
+            display: block;
+        }
+        html.dark [contenteditable]:empty:before {
+            color: #6b7280; /* text-gray-500 */
         }
     </style>
     <script>
@@ -483,8 +494,31 @@
                         <span id="chat-error-text" class="break-words">Error message</span>
                     </div>
                     <form id="chat-form" class="flex gap-3 items-end" onsubmit="handleSendMessage(event)">
-                        <div class="flex-1 relative bg-gray-100 dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 focus-within:border-brand-400 dark:focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-gray-900 transition-all flex items-center shadow-inner">
-                            <textarea id="message-input" rows="1" placeholder="Type a message..." class="w-full bg-transparent border-none px-5 py-3.5 resize-none no-scrollbar max-h-32 m-0 text-gray-800 dark:text-white text-base placeholder-gray-400 dark:placeholder-gray-500" oninput="this.style.height = '';this.style.height = Math.min(this.scrollHeight, 128) + 'px'; hideChatError();"></textarea>
+                        
+                        <!-- External Format Button & Menu -->
+                        <div class="relative flex-shrink-0 mb-0.5">
+                            <!-- Format Menu Popup -->
+                            <div id="format-menu" class="hidden absolute bottom-full left-0 mb-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg p-1.5 flex gap-1 z-50">
+                                <button type="button" id="btn-format-bold" onmousedown="event.preventDefault(); applyFormat('bold');" class="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300 font-bold transition-colors" title="Bold">B</button>
+                                <button type="button" id="btn-format-italic" onmousedown="event.preventDefault(); applyFormat('italic');" class="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300 italic font-serif transition-colors" title="Italic">I</button>
+                                <button type="button" id="btn-format-underline" onmousedown="event.preventDefault(); applyFormat('underline');" class="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300 underline transition-colors" title="Underline">U</button>
+                                <button type="button" id="btn-format-strike" onmousedown="event.preventDefault(); applyFormat('strikeThrough');" class="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300 line-through transition-colors" title="Strikethrough">S</button>
+                            </div>
+                            
+                            <!-- Format Toggle Button -->
+                            <button type="button" onclick="toggleFormatMenu(event)" class="w-[52px] h-[52px] bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:text-brand-400 dark:hover:bg-brand-900/30 transition-colors shadow-sm" title="Format Text">
+                                <div class="grid grid-cols-2 gap-[2px] text-[12px] font-serif leading-none tracking-tighter">
+                                    <span class="font-bold">B</span>
+                                    <span class="italic">I</span>
+                                    <span class="underline">U</span>
+                                    <span class="line-through block mt-[1px]">S</span>
+                                </div>
+                            </button>
+                        </div>
+
+                        <!-- Input Wrapper -->
+                        <div class="flex-1 relative bg-gray-100 dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 focus-within:border-brand-400 dark:focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-gray-900 transition-all flex items-end shadow-inner">
+                            <div id="message-input" contenteditable="true" data-placeholder="Type a message..." class="w-full bg-transparent border-none px-5 py-3.5 resize-none overflow-y-auto max-h-32 m-0 text-gray-800 dark:text-white text-base outline-none min-h-[52px]" oninput="hideChatError()"></div>
                         </div>
                         <button type="submit" id="send-btn" class="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white w-[52px] h-[52px] rounded-full flex items-center justify-center flex-shrink-0 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md mb-0.5">
                             <i data-lucide="send" class="w-5 h-5 ml-[-2px] mt-[2px]"></i>
@@ -632,7 +666,7 @@
         // --- Logo Helper ---
         function getModelLogoHtml(modelDef, classes = "w-6 h-6") {
             const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(modelDef.name)}&background=f3e8ff&color=9333ea&bold=true`;
-            return `<img src="${modelDef.logo}" class="${classes} object-contain" onerror="this.onerror=null; this.src='${fallback}'" alt="${modelDef.name}">`;
+            return `<img src="${modelDef.logo}" class="${classes} object-contain bg-transparent" onerror="this.onerror=null; this.src='${fallback}'" alt="${modelDef.name}">`;
         }
 
         // --- State Management ---
@@ -674,6 +708,7 @@
         let modalSelectedModelId = AVAILABLE_MODELS[0].id;
         let modalUploadedLogoUrl = null;
         let modalDropdownOpen = false;
+        let formatMenuOpen = false;
         let promptCallback = null;
         let confirmCallback = null;
 
@@ -687,6 +722,27 @@
                 counter++;
             }
             return newName;
+        }
+
+        function richTextToMarkdown(element) {
+            if (!element) return "";
+            let markdown = "";
+            for (let node of element.childNodes) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    markdown += node.textContent;
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    const tag = node.tagName.toLowerCase();
+                    let inner = richTextToMarkdown(node);
+                    if (tag === 'b' || tag === 'strong') markdown += `**${inner}**`;
+                    else if (tag === 'i' || tag === 'em') markdown += `*${inner}*`;
+                    else if (tag === 'u') markdown += `__${inner}__`;
+                    else if (tag === 'strike' || tag === 's' || tag === 'del') markdown += `--${inner}--`;
+                    else if (tag === 'br') markdown += `\n`;
+                    else if (tag === 'div' || tag === 'p') markdown += `\n${inner}`;
+                    else markdown += inner;
+                }
+            }
+            return markdown.replace(/^\n/, '');
         }
 
         // --- Safety Checking ---
@@ -870,6 +926,51 @@
             refreshIcons();
         }
 
+        // --- Chat Formatting Logic ---
+        function toggleFormatMenu(event) {
+            if (event) event.stopPropagation();
+            const menu = document.getElementById('format-menu');
+            formatMenuOpen = !formatMenuOpen;
+            if (formatMenuOpen) {
+                menu.classList.remove('hidden');
+                updateFormatState();
+            } else {
+                menu.classList.add('hidden');
+            }
+        }
+
+        function applyFormat(cmd) {
+            document.execCommand(cmd, false, null);
+            document.getElementById('message-input').focus();
+            updateFormatState();
+        }
+
+        function updateFormatState() {
+            if (!formatMenuOpen) return;
+            
+            const isBold = document.queryCommandState('bold');
+            const isItalic = document.queryCommandState('italic');
+            const isUnderline = document.queryCommandState('underline');
+            const isStrike = document.queryCommandState('strikeThrough');
+
+            const toggleBtn = (id, active) => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                if (active) {
+                    btn.classList.add('bg-brand-100', 'dark:bg-brand-900/40', 'text-brand-700', 'dark:text-brand-300');
+                    btn.classList.remove('hover:bg-gray-100', 'dark:hover:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                } else {
+                    btn.classList.remove('bg-brand-100', 'dark:bg-brand-900/40', 'text-brand-700', 'dark:text-brand-300');
+                    btn.classList.add('hover:bg-gray-100', 'dark:hover:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                }
+            };
+
+            toggleBtn('btn-format-bold', isBold);
+            toggleBtn('btn-format-italic', isItalic);
+            toggleBtn('btn-format-underline', isUnderline);
+            toggleBtn('btn-format-strike', isStrike);
+        }
+
         // --- Chat Configuration Logic ---
         function openChatConfig() {
             const chat = getActiveChat();
@@ -957,11 +1058,23 @@
                 if (userDropdownOpen && !e.target.closest('.user-dropdown-container')) {
                     closeUserDropdown();
                 }
+                if (formatMenuOpen && !e.target.closest('#format-menu') && !e.target.closest('button[onclick="toggleFormatMenu(event)"]')) {
+                    formatMenuOpen = false;
+                    const menu = document.getElementById('format-menu');
+                    if (menu) menu.classList.add('hidden');
+                }
             });
 
             document.getElementById('global-avatar-upload').addEventListener('change', handleImageUpload);
 
-            document.getElementById('message-input').addEventListener('keydown', function(e) {
+            const msgInput = document.getElementById('message-input');
+            
+            // Format state listener
+            ['keyup', 'mouseup', 'touchend', 'input', 'focus'].forEach(evt => {
+                msgInput.addEventListener(evt, updateFormatState);
+            });
+
+            msgInput.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     handleSendMessage(e);
@@ -1757,7 +1870,7 @@
                                     <i data-lucide="pencil" class="w-4 h-4"></i>
                                 </button>
                             </div>
-                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">${previewText}</p>
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">${formatText(previewText)}</p>
                         </div>
                         <div class="flex items-center gap-3">
                             <button onclick="archiveChat(event, '${chat.id}')" class="opacity-0 group-hover:opacity-100 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all p-2 rounded-xl" title="Archive Chat">
@@ -1924,7 +2037,7 @@
                     if (m.customAvatar) {
                          return `<img src="${m.customAvatar}" class="w-8 h-8 rounded-full border-2 border-gray-50 dark:border-gray-900 object-cover ${shift}" style="z-index:${zIndex}">`;
                     }
-                    return `<div class="w-8 h-8 rounded-full border-2 border-gray-50 dark:border-gray-900 bg-gray-200 dark:bg-gray-700 flex items-center justify-center ${shift} overflow-hidden" style="z-index:${zIndex}"><div class="w-5 h-5 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-5 h-5')}</div></div>`;
+                    return `<div class="w-8 h-8 rounded-full border-2 border-gray-50 dark:border-gray-900 bg-gray-200 dark:bg-gray-700 flex items-center justify-center ${shift} overflow-hidden" style="z-index:${zIndex}"><div class="w-4 h-4 flex items-center justify-center">${getModelLogoHtml(modelDef, 'w-4 h-4')}</div></div>`;
                 }).join('');
 
                 const html = `
@@ -1991,10 +2104,12 @@
         }
 
         function handleSendMessage(event) {
-            event.preventDefault();
+            if (event) event.preventDefault();
             const input = document.getElementById('message-input');
-            const originalText = input.value.trim();
-            if (!originalText) return;
+            
+            // Extract the user's natural formatting into raw Markdown strings
+            const rawMarkdown = richTextToMarkdown(input);
+            const originalText = rawMarkdown;
 
             hideChatError();
 
@@ -2020,8 +2135,8 @@
             }
 
             appendMessageUI(userMsg);
-            input.value = '';
-            input.style.height = 'auto'; 
+            input.innerHTML = ''; // safely clear WYSIWYG
+            input.focus();
             scrollToBottom();
 
             if (!hasBadWords) {
@@ -2067,7 +2182,7 @@
             const input = document.getElementById('message-input');
             
             sendBtn.disabled = true;
-            input.disabled = true;
+            input.contentEditable = "false";
             
             const recentMessages = chat.messages.slice(-15); 
             
@@ -2093,12 +2208,18 @@
                     sysContent += `\n\nYou have access to special commands. To use a command, format it EXACTLY as <command_name/context> anywhere in your message. For example, <action/picks up the cup> or <emotion/happy>. Other AIs will NOT see these commands, only the human user. Available commands you can use:\n${cmdList}\nDo not expose this syntax to the user in normal text, it will be parsed invisibly.`;
                 }
 
+                sysContent += `\n\nTEXT FORMATTING: You are strictly limited to the following formatting options ONLY. Do NOT use standard markdown like headers (#), lists (-), links, or code blocks (\`\`\`). Allowed formats ONLY: *italics*, **bold**, __underline__, --strikethrough--. Use these exact symbols, do not use HTML tags.`;
+
                 // Construct Messages array for Puter API
                 const puterMessages = [{ role: 'system', content: sysContent }];
                 for (const msg of recentMessages) {
                     let role = msg.sender === 'user' ? 'user' : (msg.sender === ai.id ? 'assistant' : 'user');
                     let content = msg.originalText || msg.text;
                     
+                    if (content.trim() === '') {
+                        content = '*silence*'; // Pass empty messages safely to Puter
+                    }
+
                     // Prefix other users/AIs speaking
                     if (msg.sender !== ai.id) {
                         const senderName = msg.sender === 'user' ? state.userProfile.name : (chat.members.find(m => m.id === msg.sender)?.customName || 'Someone');
@@ -2130,10 +2251,14 @@
                     
                     if (!aiGeneratedText) aiGeneratedText = "*nods silently*";
                     
+                    const allowedCommands = chat.commands ? chat.commands.map(c => c.name.toLowerCase()) : [];
                     const cmdRegex = /<([^/>]+)\/([^>]+)>/g;
                     let cleanText = aiGeneratedText.replace(cmdRegex, (match, cmd, ctx) => {
-                        extractedCommands.push({ command: cmd.trim(), context: ctx.trim() });
-                        return '';
+                        if (allowedCommands.includes(cmd.trim().toLowerCase())) {
+                            extractedCommands.push({ command: cmd.trim(), context: ctx.trim() });
+                            return '';
+                        }
+                        return match; // Leave as standard text if not a registered command
                     }).trim();
                     
                     aiGeneratedText = cleanText;
@@ -2155,7 +2280,7 @@
                         }
                         
                         sendBtn.disabled = false;
-                        input.disabled = false;
+                        input.contentEditable = "true";
                         return; // Stop the loop
                     }
                     
@@ -2189,7 +2314,7 @@
             }
 
             sendBtn.disabled = false;
-            input.disabled = false;
+            input.contentEditable = "true";
             input.focus();
         }
 
@@ -2209,7 +2334,7 @@
                         <div class="max-w-[85%] sm:max-w-[75%] flex flex-col items-end">
                             <span class="text-xs font-bold text-gray-500 dark:text-gray-400 mr-1 mb-1.5 block">${escapeHTML(state.userProfile.name)}</span>
                             <div class="bg-gradient-to-br from-brand-500 to-brand-600 text-white px-6 py-3.5 rounded-3xl rounded-tr-sm shadow-sm w-full text-left">
-                                <p class="text-base break-words whitespace-pre-wrap leading-relaxed">${escapeHTML(msg.text)}</p>
+                                <p class="text-base break-words whitespace-pre-wrap leading-relaxed">${formatText(msg.text)}</p>
                             </div>
                             ${msg.wasCensored ? `
                             <div class="mt-2 mr-1 text-xs text-red-500 dark:text-red-400 font-bold flex items-center gap-1.5 opacity-90">
@@ -2234,15 +2359,15 @@
                 const bubbleHtml = msg.isAICensored 
                     ? `<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 text-red-700 dark:text-red-400 px-6 py-3.5 rounded-3xl rounded-tl-sm shadow-sm flex items-start gap-2.5">
                          <i data-lucide="shield-alert" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
-                         <p class="text-base font-semibold break-words whitespace-pre-wrap leading-relaxed">${escapeHTML(msg.text)}</p>
+                         <p class="text-base font-semibold break-words whitespace-pre-wrap leading-relaxed">${formatText(msg.text)}</p>
                        </div>`
                     : msg.isAIError
                     ? `<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 text-red-700 dark:text-red-400 px-6 py-3.5 rounded-3xl rounded-tl-sm shadow-sm flex items-start gap-2.5">
                          <i data-lucide="server-crash" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
-                         <p class="text-sm font-semibold break-words whitespace-pre-wrap leading-relaxed">${escapeHTML(msg.text)}</p>
+                         <p class="text-sm font-semibold break-words whitespace-pre-wrap leading-relaxed">${formatText(msg.text)}</p>
                        </div>`
                     : `<div class="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-gray-800 dark:text-white px-6 py-3.5 rounded-3xl rounded-tl-sm shadow-sm">
-                         <p class="text-base break-words whitespace-pre-wrap leading-relaxed">${escapeHTML(msg.text)}</p>
+                         <p class="text-base break-words whitespace-pre-wrap leading-relaxed">${formatText(msg.text)}</p>
                        </div>`;
 
                 const commandsHtml = msg.commands && msg.commands.length > 0 
@@ -2280,6 +2405,19 @@
 
         function generateId() {
             return Math.random().toString(36).substr(2, 9);
+        }
+
+        function formatText(str) {
+            if (!str && str !== '') return '';
+            if (str === '') return '&nbsp;'; // Makes blank messages render as an empty speech bubble height
+            
+            let html = escapeHTML(str);
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            html = html.replace(/__(.*?)__/g, '<span class="underline">$1</span>');
+            html = html.replace(/--(.*?)--/g, '<del>$1</del>');
+            html = html.replace(/\n/g, '<br>');
+            return html;
         }
 
         function escapeHTML(str) {
