@@ -343,7 +343,7 @@
                 </div>
             </div>
 
-            <div class="space-y-4 overflow-y-auto flex-1 pr-2 no-scrollbar pb-2">
+            <div class="space-y-4 overflow-visible flex-1 pr-2 pb-2">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Select Model</label>
                     <div class="relative custom-dropdown" id="summarize-dropdown-container">
@@ -1351,6 +1351,9 @@
             renderSummarizeDropdownOptions();
             
             document.addEventListener('click', (e) => {
+                // Fix for detached DOM elements (e.g. clicking a dynamic checkbox causing menus to instantly close)
+                if (!document.contains(e.target)) return;
+
                 if (activeDropdownId && !e.target.closest('.custom-dropdown:not(#modal-dropdown-container):not(#character-dropdown-container)')) {
                     closeAllDropdowns();
                 }
@@ -1372,7 +1375,7 @@
                     const menu = document.getElementById('format-menu');
                     if (menu) menu.classList.add('hidden');
                 }
-                if (recipientMenuOpen && !e.target.closest('#recipient-menu') && !e.target.closest('button[onclick="toggleRecipientMenu(event)"]')) {
+                if (recipientMenuOpen && !e.target.closest('#recipient-menu') && !e.target.closest('#btn-recipient')) {
                     recipientMenuOpen = false;
                     const menu = document.getElementById('recipient-menu');
                     if (menu) menu.classList.add('hidden');
